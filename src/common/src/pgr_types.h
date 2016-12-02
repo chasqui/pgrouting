@@ -27,14 +27,29 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 #pragma once
 
 
-#ifndef __cplusplus
+#ifdef __cplusplus
+
+#include <cstddef>
+
+#else  // __cplusplus
+
+
+#ifdef __GNUC__
+#pragma GCC diagnostic ignored "-pedantic"
+#endif
 
 // for bool
 #include <postgres.h>
 
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
+
 // For NULL & size_t
 #include <stdlib.h>
-#endif
+
+
+#endif  // __cplusplus
 
 // For int64_t etc
 #include <stdint.h>
@@ -79,12 +94,12 @@ typedef struct {
 /*
  * This one is for processing
  */
-typedef struct {
+struct Path_t{
     int64_t node;
     int64_t edge;
     double cost;
     double agg_cost;
-} Path_t;
+};
 
 /*
  * This ones are for returning the info to postgres
@@ -131,6 +146,27 @@ typedef struct {
     double cost;
     double reverse_cost;
 } pgr_edge_t;
+
+
+// Patrix : Adition d'une nouvelle structure pour l'algorithme TDQPPP
+
+typedef struct {
+    int64_t id;
+    int64_t source;
+    int64_t target;
+    double cost;
+    double reverse_cost;
+    double distance;
+    double speed_limit;
+	int64_t sens;
+//	int64_t travel_speeds;
+	char   *travel_speeds; // TODO : esto se alamacenará en un arreglo, para las horas de trafico.
+
+} pgr_edge_t_patrix;
+
+
+
+
 
 typedef struct {
   int64_t edge;
@@ -189,6 +225,22 @@ struct {
     expectType eType;
 } Column_info_t;
 
+
+/**************************************************************************
+ * return type for contraction
+ * ***********************************************************************/
+typedef struct {
+    int64_t id;
+    char* type;
+    int64_t source;
+    int64_t target;
+    double cost;
+    int64_t *contracted_vertices;
+    int contracted_vertices_size;
+} pgr_contracted_blob;
+
+
+
 enum graphType {UNDIRECTED = 0, DIRECTED};
 
 /**************************************************************************
@@ -208,16 +260,16 @@ typedef struct {
 } Customer_t;
 
 /*
-    OUT seq INTEGER,        done in the .c code
-    OUT vehicle_seq INTEGER,
-    OUT vehicle_id INTEGER,
-    OUT order_id BIGINT,
-    OUT travelTime FLOAT,
-    OUT arrivalTime FLOAT,
-    OUT waitTime FLOAT,
-    OUT serviceTime FLOAT,
-    OUT departureTime FLOAT,
-*/
+   OUT seq INTEGER,        done in the .c code
+   OUT vehicle_seq INTEGER,
+   OUT vehicle_id INTEGER,
+   OUT order_id BIGINT,
+   OUT travelTime FLOAT,
+   OUT arrivalTime FLOAT,
+   OUT waitTime FLOAT,
+   OUT serviceTime FLOAT,
+   OUT departureTime FLOAT,
+   */
 
 typedef struct  {
     int vehicle_id;

@@ -13,12 +13,15 @@ cmake_minimum_required(VERSION 2.8 FATAL_ERROR)
 #
 # On Master cmake -DMAKE_BUILD_TYPE=Release
 #----------------------
+if(POLICY CMP0046)
+    cmake_policy(SET CMP0046 OLD)
+endif()
 
 
 message(STATUS "CMAKE_BUILD_TYPE ${CMAKE_BUILD_TYPE}")
 if(NOT CMAKE_BUILD_TYPE)
     if (UNIX)
-        set(CMAKE_BUILD_TYPE Release CACHE STRING
+        set(CMAKE_BUILD_TYPE Debug CACHE STRING
             "Choose the type of build, options are: None Debug Release RelWithDebInfo
             MinSizeRel."
             FORCE)
@@ -92,7 +95,7 @@ set(PgRouting_SOURCE_NAMES
     #----------------------
     "alpha_shape"
     "bd_astar"
-    "bd_dijkstra"
+    "bdDijkstra" # 2.4
     "trsp"
 
     #----------------------
@@ -108,6 +111,7 @@ set(PgRouting_SOURCE_NAMES
 
     # template generated name
     #"funnyDijkstra"
+    "patrix"
 
     )
 
@@ -131,6 +135,7 @@ set(PgRouting_SQL_DIRECTORIES
     #----------------------
     # Wrappers for backwards compatibility 
     #----------------------
+    "bd_dijkstra"   # 2.0 wrap of pgr_bdDijkstra
     "apsp_johnson"  # 2.0 wrap of pgr_johnson
     "apsp_warshall" # 2.0 wrap of pgr_warshall
     "kdijkstra"     # 2.0 wrap of pgr_dijkstra & pgr_dijkstraCost
@@ -176,7 +181,7 @@ endif()
 #-----------------------------------------------------------------------------
 # PGROUTING version number.
 set(PGROUTING_VERSION_MAJOR "2")
-set(PGROUTING_VERSION_MINOR "3")
+set(PGROUTING_VERSION_MINOR "4")
 set(PGROUTING_VERSION_PATCH "0")
 
 set(PGROUTING_VERSION_STRING "${PGROUTING_VERSION_MAJOR}.${PGROUTING_VERSION_MINOR}.${PGROUTING_VERSION_PATCH}")
@@ -187,7 +192,7 @@ set(POSTGIS_MINIMUM_VERSION "2.0.0")
 
 file(STRINGS "${PGROUTING_SOURCE_DIR}/VERSION" PGROUTING_BUILD_STRING)
 
-set(PGROUTING_GIT_TAG "pgrouting-2.3.0")
+set(PGROUTING_GIT_TAG "pgrouting-2.4.0-dev")
 
 #string(REGEX REPLACE "^(.+)-([0-9]+)-g([0-9a-f]+) (.*)$" "\\1" PGROUTING_GIT_TAG ${PGROUTING_BUILD_STRING})
 string(REGEX REPLACE "^(.+)-([^-]+)-[0-9]+-([0-9a-f]+) (.*)$" "\\2" PGROUTING_GIT_BUILD ${PGROUTING_BUILD_STRING})
@@ -398,9 +403,8 @@ if(NOT WIN32)
 endif()
 
 
-set(CMAKE_C_FLAGS_DEBUG   "${CMAKE_C_FLAGS_DEBUG}  -Wall -Wconversion -pedantic -fmax-errors=10  -Wmissing-prototypes")
-#TODO remove the optimizer flag when pgr_bdijkstra gets fixed
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall -O1 -fno-implicit-inline-templates -Wconversion -pedantic -fmax-errors=10 -Wunused -Wuninitialized -Wextra")
+set(CMAKE_C_FLAGS_DEBUG   "${CMAKE_C_FLAGS_DEBUG}  -Wall -Wconversion -pedantic -fmax-errors=10 -Wmissing-prototypes -Wunused -Wuninitialized -Wextra -Wdouble-promotion -Werror")
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall -fno-implicit-inline-templates -Wconversion -pedantic -fmax-errors=10 -Wunused -Wuninitialized -Wextra -Wdouble-promotion -Werror")
 
 #+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
