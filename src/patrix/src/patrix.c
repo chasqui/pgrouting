@@ -40,7 +40,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 #include "./patrix_driver.h"
 
-Datum PGDLLEXPORT Datum patrix(PG_FUNCTION_ARGS);
+PGDLLEXPORT Datum patrix(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(patrix);
 
 
