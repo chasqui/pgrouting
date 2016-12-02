@@ -1,7 +1,9 @@
 # default build directory
 build
 fix_typos
-
+.cproject
+.project
+.settings/language.settings.xml
 .DS_Store
 .vagrant
 tools/vagrant/packaging.sh
