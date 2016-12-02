@@ -27,21 +27,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 ********************************************************************PGR-GNU*/
 
-#include "postgres.h"
-#include "executor/spi.h"
-#include "funcapi.h"
+#include "./../../common/src/postgres_connection.h"
 #include "utils/array.h"
-#include "catalog/pg_type.h"
-#if PGSQL_VERSION > 92
-#include "access/htup_details.h"
-#endif
 
-/*
-  Uncomment when needed
-*/
-#define DEBUG
 
-#include "fmgr.h"
 #include "./../../common/src/debug_macro.h"
 #include "./../../common/src/time_msg.h"
 #include "./../../common/src/pgr_types.h"
@@ -51,13 +40,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 #include "./patrix_driver.h"
 
+PGDLLEXPORT Datum patrix(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(patrix);
-#ifndef _MSC_VER
-Datum
-#else  // _MSC_VER
-PGDLLEXPORT Datum
-#endif
-patrix(PG_FUNCTION_ARGS);
 
 
 /*******************************************************************************/
@@ -66,13 +50,17 @@ static
 void
 process( char* edges_sql,
         int64_t start_vid,
-        int64_t *end_vidsArr,
-        size_t size_end_vidsArr,
+        ArrayType *ends,
         bool directed,
         General_path_element_t **result_tuples,
         size_t *result_count)
 {
     pgr_SPI_connect();
+
+    size_t size_end_vidsArr = 0;
+    int64_t* end_vidsArr = 
+        pgr_get_bigIntArray(&size_end_vidsArr, ends);
+
 
     PGR_DBG("Load data");
     pgr_edge_t_patrix *edges_patrix = NULL;   // Patrix : cambio del typo de estructura
@@ -110,7 +98,7 @@ process( char* edges_sql,
     time_msg("processing pgr_patrix", start_t, clock());
 
     elog(DEBUG1,"Hola Patrix!!");
-    elog(DEBUG1,log_msg);
+    elog(DEBUG1,"%s",log_msg);
 
 
     /*
@@ -156,15 +144,9 @@ process( char* edges_sql,
 /*                                                                            */
 /******************************************************************************/
 
-#ifndef _MSC_VER    // patrix:  _MSC_VER is the macro that'll get you the compiler version
-Datum
-#else  // _MSC_VER
 PGDLLEXPORT Datum
-#endif
 patrix(PG_FUNCTION_ARGS) {
     FuncCallContext     *funcctx;
-    uint32_t            call_cntr;
-    uint32_t            max_calls;
     TupleDesc           tuple_desc;
 
     /**************************************************************************/
@@ -190,31 +172,26 @@ patrix(PG_FUNCTION_ARGS) {
     directed BOOLEAN DEFAULT true,
          **********************************************************************/
 
-        PGR_DBG("Initializing arrays");
-        int64_t* end_vidsArr;
-        size_t size_end_vidsArr;
-        end_vidsArr = (int64_t*) pgr_get_bigIntArray(&size_end_vidsArr, PG_GETARG_ARRAYTYPE_P(2));
-        PGR_DBG("targetsArr size %ld ", size_end_vidsArr);
-
         PGR_DBG("Calling process");
         // Code standard:
         // Use same order as in the query
         // Pass the array and it's size on the same line
         process(
-                pgr_text2char(PG_GETARG_TEXT_P(0)),
+                text_to_cstring(PG_GETARG_TEXT_P(0)),
                 PG_GETARG_INT64(1),
-                end_vidsArr, size_end_vidsArr,
+                PG_GETARG_ARRAYTYPE_P(2),
                 PG_GETARG_BOOL(3),
                 &result_tuples,
                 &result_count);
 
-        // while developing leave the message as a reminder
-        PGR_DBG("Cleaning arrays using free(<array-name>)");
-        free(end_vidsArr);
         /*                                                                             */
         /*******************************************************************************/
 
-        funcctx->max_calls = (uint32_t) result_count;
+#if PGSQL_VERSION > 95
+        funcctx->max_calls = result_count;
+#else
+        funcctx->max_calls = (uint32_t)result_count;
+#endif
         funcctx->user_fctx = result_tuples;
         if (get_call_result_type(fcinfo, NULL, &tuple_desc) != TYPEFUNC_COMPOSITE)
             ereport(ERROR,
@@ -227,29 +204,28 @@ patrix(PG_FUNCTION_ARGS) {
     }
 
     funcctx = SRF_PERCALL_SETUP();
-    call_cntr = funcctx->call_cntr;
-    max_calls = funcctx->max_calls;
     tuple_desc = funcctx->tuple_desc;
     result_tuples = (General_path_element_t*) funcctx->user_fctx;
 
-    if (call_cntr < max_calls) {
+    if (funcctx->call_cntr < funcctx->max_calls) {
         HeapTuple    tuple;
         Datum        result;
         Datum        *values;
         bool*        nulls;
+        size_t call_cntr = funcctx->call_cntr;
 
         /*******************************************************************************/
         /*                          MODIFY!!!!!                                        */
         /*  This has to match you ouput otherwise the server crashes                   */
         /*
            OUT seq INTEGER,
-    OUT path_seq INTEGER,
-    OUT start_vid BIGINT,
-    OUT end_vid BIGINT,
-    OUT node BIGINT,
-    OUT edge BIGINT,
-    OUT cost FLOAT,
-    OUT agg_cost FLOAT
+           OUT path_seq INTEGER,
+           OUT start_vid BIGINT,
+           OUT end_vid BIGINT,
+           OUT node BIGINT,
+           OUT edge BIGINT,
+           OUT cost FLOAT,
+           OUT agg_cost FLOAT
          ********************************************************************************/
 
 
@@ -277,9 +253,6 @@ patrix(PG_FUNCTION_ARGS) {
         result = HeapTupleGetDatum(tuple);
         SRF_RETURN_NEXT(funcctx, result);
     } else {
-        // cleanup
-        if (result_tuples) free(result_tuples);
-
         SRF_RETURN_DONE(funcctx);
     }
 }

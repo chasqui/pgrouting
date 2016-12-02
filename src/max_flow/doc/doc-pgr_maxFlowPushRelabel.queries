@@ -1,7 +1,9 @@
+set client_min_messages to NOTICE;
+SET
+set client_min_messages to NOTICE;
+SET
 BEGIN;
 BEGIN
-SET client_min_messages TO NOTICE;
-SET
 -- q1
 SELECT * FROM pgr_maxFlowPushRelabel(
     'SELECT id,
