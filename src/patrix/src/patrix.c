@@ -40,13 +40,8 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 #include "./patrix_driver.h"
 
+Datum PGDLLEXPORT Datum patrix(PG_FUNCTION_ARGS);
 PG_FUNCTION_INFO_V1(patrix);
-#ifndef _MSC_VER
-Datum
-#else  // _MSC_VER
-PGDLLEXPORT Datum
-#endif
-patrix(PG_FUNCTION_ARGS);
 
 
 /*******************************************************************************/
@@ -149,15 +144,9 @@ process( char* edges_sql,
 /*                                                                            */
 /******************************************************************************/
 
-#ifndef _MSC_VER    // patrix:  _MSC_VER is the macro that'll get you the compiler version
-Datum
-#else  // _MSC_VER
 PGDLLEXPORT Datum
-#endif
 patrix(PG_FUNCTION_ARGS) {
     FuncCallContext     *funcctx;
-    uint32_t            call_cntr;
-    uint32_t            max_calls;
     TupleDesc           tuple_desc;
 
     /**************************************************************************/
@@ -198,7 +187,11 @@ patrix(PG_FUNCTION_ARGS) {
         /*                                                                             */
         /*******************************************************************************/
 
-        funcctx->max_calls = (uint32_t) result_count;
+#if PGSQL_VERSION > 95
+        funcctx->max_calls = result_count;
+#else
+        funcctx->max_calls = (uint32_t)result_count;
+#endif
         funcctx->user_fctx = result_tuples;
         if (get_call_result_type(fcinfo, NULL, &tuple_desc) != TYPEFUNC_COMPOSITE)
             ereport(ERROR,
@@ -211,29 +204,28 @@ patrix(PG_FUNCTION_ARGS) {
     }
 
     funcctx = SRF_PERCALL_SETUP();
-    call_cntr = funcctx->call_cntr;
-    max_calls = funcctx->max_calls;
     tuple_desc = funcctx->tuple_desc;
     result_tuples = (General_path_element_t*) funcctx->user_fctx;
 
-    if (call_cntr < max_calls) {
+    if (funcctx->call_cntr < funcctx->max_calls) {
         HeapTuple    tuple;
         Datum        result;
         Datum        *values;
         bool*        nulls;
+        size_t call_cntr = funcctx->call_cntr;
 
         /*******************************************************************************/
         /*                          MODIFY!!!!!                                        */
         /*  This has to match you ouput otherwise the server crashes                   */
         /*
            OUT seq INTEGER,
-    OUT path_seq INTEGER,
-    OUT start_vid BIGINT,
-    OUT end_vid BIGINT,
-    OUT node BIGINT,
-    OUT edge BIGINT,
-    OUT cost FLOAT,
-    OUT agg_cost FLOAT
+           OUT path_seq INTEGER,
+           OUT start_vid BIGINT,
+           OUT end_vid BIGINT,
+           OUT node BIGINT,
+           OUT edge BIGINT,
+           OUT cost FLOAT,
+           OUT agg_cost FLOAT
          ********************************************************************************/
 
 
