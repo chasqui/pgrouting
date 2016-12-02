@@ -69,6 +69,7 @@ pg_prove ../../src/convenience/test/pgtap/* -d $PGDATABASE  -U $PGUSER
 
 pg_prove ../../src/tsp/test/performance/* -d $PGDATABASE  -U $PGUSER
 pg_prove ../../src/contraction/test/pgtap/* -d $PGDATABASE  -U $PGUSER
+pg_prove ../../src/patrix/test/pgtap/* -d $PGDATABASE  -U $PGUSER
 
 if [ "$?" -ne 0 ]
 then

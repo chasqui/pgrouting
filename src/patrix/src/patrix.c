@@ -27,21 +27,10 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 ********************************************************************PGR-GNU*/
 
-#include "postgres.h"
-#include "executor/spi.h"
-#include "funcapi.h"
+#include "./../../common/src/postgres_connection.h"
 #include "utils/array.h"
-#include "catalog/pg_type.h"
-#if PGSQL_VERSION > 92
-#include "access/htup_details.h"
-#endif
 
-/*
-  Uncomment when needed
-*/
-#define DEBUG
 
-#include "fmgr.h"
 #include "./../../common/src/debug_macro.h"
 #include "./../../common/src/time_msg.h"
 #include "./../../common/src/pgr_types.h"
@@ -66,13 +55,17 @@ static
 void
 process( char* edges_sql,
         int64_t start_vid,
-        int64_t *end_vidsArr,
-        size_t size_end_vidsArr,
+        ArrayType *ends,
         bool directed,
         General_path_element_t **result_tuples,
         size_t *result_count)
 {
     pgr_SPI_connect();
+
+    size_t size_end_vidsArr = 0;
+    int64_t* end_vidsArr = 
+        pgr_get_bigIntArray(&size_end_vidsArr, ends);
+
 
     PGR_DBG("Load data");
     pgr_edge_t_patrix *edges_patrix = NULL;   // Patrix : cambio del typo de estructura
@@ -110,7 +103,7 @@ process( char* edges_sql,
     time_msg("processing pgr_patrix", start_t, clock());
 
     elog(DEBUG1,"Hola Patrix!!");
-    elog(DEBUG1,log_msg);
+    elog(DEBUG1,"%s",log_msg);
 
 
     /*
@@ -190,12 +183,6 @@ patrix(PG_FUNCTION_ARGS) {
     directed BOOLEAN DEFAULT true,
          **********************************************************************/
 
-        PGR_DBG("Initializing arrays");
-        int64_t* end_vidsArr;
-        size_t size_end_vidsArr;
-        end_vidsArr = (int64_t*) pgr_get_bigIntArray(&size_end_vidsArr, PG_GETARG_ARRAYTYPE_P(2));
-        PGR_DBG("targetsArr size %ld ", size_end_vidsArr);
-
         PGR_DBG("Calling process");
         // Code standard:
         // Use same order as in the query
@@ -203,14 +190,11 @@ patrix(PG_FUNCTION_ARGS) {
         process(
                 text_to_cstring(PG_GETARG_TEXT_P(0)),
                 PG_GETARG_INT64(1),
-                end_vidsArr, size_end_vidsArr,
+                PG_GETARG_ARRAYTYPE_P(2),
                 PG_GETARG_BOOL(3),
                 &result_tuples,
                 &result_count);
 
-        // while developing leave the message as a reminder
-        PGR_DBG("Cleaning arrays using free(<array-name>)");
-        free(end_vidsArr);
         /*                                                                             */
         /*******************************************************************************/
 
@@ -277,9 +261,6 @@ patrix(PG_FUNCTION_ARGS) {
         result = HeapTupleGetDatum(tuple);
         SRF_RETURN_NEXT(funcctx, result);
     } else {
-        // cleanup
-        if (result_tuples) free(result_tuples);
-
         SRF_RETURN_DONE(funcctx);
     }
 }
