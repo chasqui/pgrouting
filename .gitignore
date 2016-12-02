@@ -4,9 +4,11 @@ fix_typos
 .cproject
 .project
 .settings/language.settings.xml
+code_linter
 .DS_Store
 .vagrant
 tools/vagrant/packaging.sh
 *.mo
 .directory
 notUsed
+funnyDijkstra

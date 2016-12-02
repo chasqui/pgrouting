@@ -60,7 +60,8 @@ void fetch_edge(
         int64_t *default_id,
         float8 default_rcost,
         pgr_edge_t *edge,
-        size_t *valid_edges) {
+        size_t *valid_edges,
+        bool normal) {
     if (column_found(info[0].colNumber)) {
         edge->id = pgr_SPI_getBigInt(tuple, tupdesc, info[0]);
     } else {
@@ -68,8 +69,14 @@ void fetch_edge(
         ++(*default_id);
     }
 
-    edge->source = pgr_SPI_getBigInt(tuple, tupdesc,  info[1]);
-    edge->target = pgr_SPI_getBigInt(tuple, tupdesc, info[2]);
+    if (normal) {
+        edge->source = pgr_SPI_getBigInt(tuple, tupdesc,  info[1]);
+        edge->target = pgr_SPI_getBigInt(tuple, tupdesc, info[2]);
+    } else {
+        edge->target = pgr_SPI_getBigInt(tuple, tupdesc,  info[1]);
+        edge->source = pgr_SPI_getBigInt(tuple, tupdesc, info[2]);
+    }
+
     edge->cost = pgr_SPI_getFloat8(tuple, tupdesc, info[3]);
 
     if (column_found(info[4].colNumber)) {
@@ -167,7 +174,7 @@ void fetch_edge_patrix(
 
     edge->distance      = pgr_SPI_getFloat8(tuple, tupdesc, info[5]);
     edge->speed_limit   = pgr_SPI_getFloat8(tuple, tupdesc, info[6]);
-    edge->sens          = pgr_SPI_getFloat8(tuple, tupdesc, info[7]);
+    edge->sens          = pgr_SPI_getBigInt(tuple, tupdesc, info[7]);
     edge->travel_speeds = pgr_SPI_getText(tuple, tupdesc, info[8]);
     // edge->travel_speeds = strdup(pgr_SPI_getText(tuple, tupdesc, info[8]));
 
@@ -389,8 +396,6 @@ get_edges_9_columns(
             size_t t;
             SPITupleTable *tuptable = SPI_tuptable;
             TupleDesc tupdesc = SPI_tuptable->tupdesc;
-            PGR_DBG("processing %ld edge tupĺes", ntuples);
-
             for (t = 0; t < ntuples; t++) {
                 HeapTuple tuple = tuptable->vals[t];
                 fetch_edge_with_xy(&tuple, &tupdesc, info,
@@ -406,13 +411,12 @@ get_edges_9_columns(
 
 
     if (total_tuples == 0 || valid_edges == 0) {
-        PGR_DBG("NO edges found");
-        return;
+        PGR_DBG("No edges found");
     }
 
     (*total_edges) = total_tuples;
-    PGR_DBG("Finish reading %ld edges, %ld", total_tuples, (*total_edges));
-    time_msg(" reading Edges with xy", start_t, clock());
+    PGR_DBG("Finish reading %ld edges", total_tuples);
+    time_msg("reading edges", start_t, clock());
 }
 
 
@@ -423,7 +427,8 @@ get_edges_5_columns(
         char *sql,
         pgr_edge_t **edges,
         size_t *totalTuples,
-        bool ignore_id) {
+        bool ignore_id,
+        bool normal) {
     clock_t start_t = clock();
 
     const int tuple_limit = 1000000;
@@ -489,14 +494,13 @@ get_edges_5_columns(
             size_t t;
             SPITupleTable *tuptable = SPI_tuptable;
             TupleDesc tupdesc = SPI_tuptable->tupdesc;
-            PGR_DBG("processing %ld edge tupĺes", ntuples);
-
             for (t = 0; t < ntuples; t++) {
                 HeapTuple tuple = tuptable->vals[t];
                 fetch_edge(&tuple, &tupdesc, info,
                         &default_id, -1,
                         &(*edges)[total_tuples - ntuples + t],
-                        &valid_edges);
+                        &valid_edges,
+                        normal);
             }
             SPI_freetuptable(tuptable);
         } else {
@@ -506,14 +510,12 @@ get_edges_5_columns(
 
 
     if (total_tuples == 0 || valid_edges == 0) {
-        (*totalTuples) = 0;
-        PGR_DBG("NO edges");
-        return;
+        PGR_DBG("No edges found");
     }
 
     (*totalTuples) = total_tuples;
-    PGR_DBG("Finish reading %ld edges, %ld", total_tuples, (*totalTuples));
-    time_msg(" reading Edges", start_t, clock());
+    PGR_DBG("Reading %ld edges", total_tuples);
+    time_msg("reading edges", start_t, clock());
 }
 
 static
@@ -582,14 +584,14 @@ get_edges_flow(
             size_t t;
             SPITupleTable *tuptable = SPI_tuptable;
             TupleDesc tupdesc = SPI_tuptable->tupdesc;
-            PGR_DBG("processing %lu edge tupĺes", ntuples);
 
             for (t = 0; t < ntuples; t++) {
                 HeapTuple tuple = tuptable->vals[t];
                 fetch_edge(&tuple, &tupdesc, info,
                            &default_id, -1,
                            &(*edges)[total_tuples - ntuples + t],
-                           &valid_edges);
+                           &valid_edges,
+                           true);
             }
             SPI_freetuptable(tuptable);
         } else {
@@ -597,16 +599,13 @@ get_edges_flow(
         }
     }
 
-
     if (total_tuples == 0 || valid_edges == 0) {
-        (*totalTuples) = 0;
-        PGR_DBG("NO edges");
-        return;
+        PGR_DBG("No edges found");
     }
 
     (*totalTuples) = total_tuples;
-    PGR_DBG("Finish reading %ld edges, %ld", total_tuples, (*totalTuples));
-    time_msg(" reading Edges", start_t, clock());
+    PGR_DBG("Reading %ld edges", total_tuples);
+    time_msg("reading edges", start_t, clock());
 }
 
 static
@@ -668,9 +667,11 @@ get_edges_basic(
 
         if (ntuples > 0) {
             if ((*edges) == NULL)
-                (*edges) = (pgr_basic_edge_t *)palloc0(total_tuples * sizeof(pgr_basic_edge_t));
+                (*edges) = (pgr_basic_edge_t *)palloc0(
+                        total_tuples * sizeof(pgr_basic_edge_t));
             else
-                (*edges) = (pgr_basic_edge_t *)repalloc((*edges), total_tuples * sizeof(pgr_basic_edge_t));
+                (*edges) = (pgr_basic_edge_t *)repalloc(
+                        (*edges), total_tuples * sizeof(pgr_basic_edge_t));
 
             if ((*edges) == NULL) {
                 elog(ERROR, "Out of memory");
@@ -679,7 +680,6 @@ get_edges_basic(
             size_t t;
             SPITupleTable *tuptable = SPI_tuptable;
             TupleDesc tupdesc = SPI_tuptable->tupdesc;
-            PGR_DBG("processing %ld edge tupĺes", ntuples);
 
             for (t = 0; t < ntuples; t++) {
                 HeapTuple tuple = tuptable->vals[t];
@@ -694,18 +694,16 @@ get_edges_basic(
         }
     }
 
-
     if (total_tuples == 0 || valid_edges == 0) {
-        (*totalTuples) = 0;
-        PGR_DBG("NO edges");
-        return;
+        PGR_DBG("No edges found");
     }
 
     (*totalTuples) = total_tuples;
-    PGR_DBG("Finish reading %ld edges, %ld", total_tuples, (*totalTuples));
-    time_msg(" reading Edges", start_t, clock());
+    PGR_DBG("Reading %ld edges", total_tuples);
+    time_msg("reading edges", start_t, clock());
 }
 
+/* select id, source, target, capacity, reverse_capacity */
 void
 pgr_get_flow_edges(
     char *sql,
@@ -715,6 +713,7 @@ pgr_get_flow_edges(
     get_edges_flow(sql, edges, total_edges, ignore_id);
 }
 
+/* select id, source, target, cost, reverse_cost */
 void
 pgr_get_edges(
         char *edges_sql,
@@ -722,7 +721,8 @@ pgr_get_edges(
         size_t *total_edges)
 {
     bool ignore_id = false;
-    get_edges_5_columns(edges_sql, edges, total_edges, ignore_id);
+    bool normal = true;
+    get_edges_5_columns(edges_sql, edges, total_edges, ignore_id, normal);
 }
 
 
@@ -742,15 +742,29 @@ pgr_get_edges_patrix(
 
 
 
+/* select id, source AS target, target AS source, cost, reverse_cost */
+void
+pgr_get_edges_reversed(
+        char *edges_sql,
+        pgr_edge_t **edges,
+        size_t *total_edges) {
+    bool ignore_id = false;
+    bool normal = false;
+    get_edges_5_columns(edges_sql, edges, total_edges, ignore_id, normal);
+}
+
+/* select source, target, cost, reverse_cost */
 void
 pgr_get_edges_no_id(
         char *edges_sql,
         pgr_edge_t **edges,
         size_t *total_edges) {
     bool ignore_id = true;
-    get_edges_5_columns(edges_sql, edges, total_edges, ignore_id);
+    bool normal = true;
+    get_edges_5_columns(edges_sql, edges, total_edges, ignore_id, normal);
 }
 
+/* select id, source, target, cost, reverse_cost, x1, y1, x2, y2 */
 void
 pgr_get_edges_xy(
         char *edges_sql,
@@ -758,6 +772,12 @@ pgr_get_edges_xy(
         size_t *total_edges) {
     get_edges_9_columns(edges_sql, edges, total_edges, true);
 }
+
+/* select id,
+ * source AS target,
+ * target AS source,
+ * cost, reverse_cost,
+ * x1, y1, x2, y2 */
 void
 pgr_get_edges_xy_reversed(
         char *edges_sql,
@@ -766,11 +786,12 @@ pgr_get_edges_xy_reversed(
     get_edges_9_columns(edges_sql, edges, total_edges, false);
 }
 
+/* used in flow algorithms */
 void
 pgr_get_basic_edges(
-    char *sql,
-    pgr_basic_edge_t **edges,
-    size_t *total_edges) {
+        char *sql,
+        pgr_basic_edge_t **edges,
+        size_t *total_edges) {
     bool ignore_id = false;
     get_edges_basic(sql, edges, total_edges, ignore_id);
 }
